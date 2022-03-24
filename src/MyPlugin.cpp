@@ -1,91 +1,97 @@
 #include "MyPlugin.h"
-#include "include/DTrackSDK.hpp"
 
 #include <mc_control/GlobalPluginMacros.h>
 
-#include <iostream>
-#include <sstream>
-#include <Eigen/Dense>
+
 // global DTrackSDK
 static DTrackSDK* dt = NULL;
-Eigen::Quaterniond Q, Q_c, P_loc_quat, P_rot_quat, P_loc_new, P_rot_new;
-Eigen::Vector4d P_loc_vec, Q_temp, P_rot_vec;
 
 // prototypes
-static void output_to_console(mc_control::MCGlobalController & controller);
-static bool data_error_to_console();
-int portN;
 namespace mc_plugin
 {
 
-MyPlugin::~MyPlugin() = default;
-
 void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::Configuration & config)
 {
-  portN=config("port");
-  	Eigen::Quaterniond rot;
-	Eigen::Vector3d trans;
+
 	controller.controller().datastore().make<Eigen::Quaterniond>("rotation",rot);
 	controller.controller().datastore().make<Eigen::Vector3d>("translation",trans);
-  mc_rtc::log::success("port number is {}", portN);
-  mc_rtc::log::info("MyPlugin::init called with configuration:\n{}", config.dump(true, true));
+
+	// Reading transform matrix from file. 
+	std::ifstream fi("/home/moro/mcProjects/transform_matrix/build/cali.txt");
+	if(!fi)
+	{
+		mc_rtc::log::error_and_throw<std::runtime_error>("[IRPlugin] No calibrate transform matrix file, aborting.");
+	}
+    while(fi.good() && linenum < 5)
+    {
+        fi.getline(line, 256);
+        // puts(line);
+        std::istringstream iss(line);
+        iss >> intarr[0] >> intarr[1] >> intarr[2] >> intarr[3];
+
+        for(int i = 0; i < 4; i++)
+        {
+            T0(linenum-1, i) = intarr[i];
+        }
+        linenum++;
+    }
+	fi.close();
+
+	mc_rtc::log::info("[IRPlugin] Transform matrix:\n {}", T0);
+
+	std::istringstream portstream( "6324" );
+	unsigned short port;
+	portstream >> port;  // data port
+	if ( portstream.fail() )
+	{
+		mc_rtc::log::error_and_throw<std::runtime_error>("[IRPlugin] invalid port {}", port);
+	}
+	// initialization:
+	dt = new DTrackSDK( port );
+	if ( ! dt->isDataInterfaceValid() )
+	{
+		mc_rtc::log::error_and_throw<std::runtime_error>("[IRPlugin] DTrackSDK init error");
+	}
+	dt->setDataTimeoutUS( 10000 );  // NOTE: change here timeout for receiving tracking data, if necessary
+	dt->setDataBufferSize( 20000 );  // NOTE: change here buffer size for receiving tracking data, if necessary
+	
+	// initialize vectors
+	loc_tar_0 = Eigen::Vector4d::Ones();
+	loc_tar_1 << 0.82, 0, 0.31, 1;
+	gipper_offset << -10, 0, 0, 1;
+
+	// Initialize Rotation quatrenions. 
+	R0 = T0.block(0,0,3,3);
+	rot_T = R0;
+	rot_T = rot_T.normalized();
+
+	// rot_bias compensates for difference between the IR and arm frame. 
+	rot_bias_temp << 0.5, 0.5, 0.5, 0.5;
+	rot_bias = rot_bias_temp;
 }
 
 void MyPlugin::reset(mc_control::MCGlobalController & controller)
 {
-  mc_rtc::log::info("MyPlugin::reset called");
+  mc_rtc::log::info("[IRPlugin] MyPlugin::reset called");
 }
 
 void MyPlugin::before(mc_control::MCGlobalController & controller)
 {
-  mc_rtc::log::info("MyPlugin::before");  
-  std::istringstream portstream( "6324" );
-	unsigned short port;
-	portstream >> port;  // data port
-
-	if ( portstream.fail() )
-	{
-		std::cout << "invalid port '" << portN << "'" << std::endl;
-		//return -2;
-	}
-
-	// initialization:
-
-	dt = new DTrackSDK( port );
-
-	if ( ! dt->isDataInterfaceValid() )
-	{
-		std::cout << "DTrackSDK init error" << std::endl;
-		//return -3;
-	}
-	std::cout << "listening at local data port " << dt->getDataPort() << std::endl;
-
-	dt->setDataTimeoutUS( 1000 );  // NOTE: change here timeout for receiving tracking data, if necessary
-	dt->setDataBufferSize( 20000 );  // NOTE: change here buffer size for receiving tracking data, if necessary
-
 	// measurement:
-
 	int count = 0;
-	//while ( 1 )  // collect 1000 frames
-	//{
-		if ( dt->receive() )
-		{
-			output_to_console(controller);
-		}
-		else
-		{
-			data_error_to_console();
-		}
-	//}
-
-
-	delete dt;  // clean up
-	//return 0;
+	if( dt->receive() )
+	{
+		assign(controller);
+	}
+	else
+	{
+		data_error_to_console();
+	}
 }
 
 void MyPlugin::after(mc_control::MCGlobalController & controller)
 {
-  mc_rtc::log::info("MyPlugin::after");
+  mc_rtc::log::info("[IRPlugin] MyPlugin::after");
 }
 
 mc_control::GlobalPlugin::GlobalPluginConfiguration MyPlugin::configuration()
@@ -97,73 +103,54 @@ mc_control::GlobalPlugin::GlobalPluginConfiguration MyPlugin::configuration()
   return out;
 }
 
-} // namespace mc_plugin
-
-EXPORT_MC_RTC_PLUGIN("MyPlugin", mc_plugin::MyPlugin)
 /**
  * \brief Prints current tracking data to console.
  */
-static void output_to_console(mc_control::MCGlobalController & controller)
+void MyPlugin::assign(mc_control::MCGlobalController & controller)
 {
-	// std::cout.precision( 3 );
-	// std::cout.setf( std::ios::fixed, std::ios::floatfield );
-
-	// std::cout << std::endl << "frame " << dt->getFrameCounter() << " ts " << dt->getTimeStamp()
-	//           << " nbod " << dt->getNumBody() << " nfly " << dt->getNumFlyStick()
-	//           << " nmea " << dt->getNumMeaTool() << " nmearef " << dt->getNumMeaRef() 
-	//           << " nhand " << dt->getNumHand() << " nmar " << dt->getNumMarker() 
-	//           << " nhuman " << dt->getNumHuman() << " ninertial " << dt->getNumInertial()
-	//           << std::endl;
-
-	// Standard bodies:
 	for ( int i = 0; i < dt->getNumBody(); i++ )
 	{
 		
 		const DTrackBody* body = dt->getBody( i );
 		if ( body == NULL )
 		{
-			std::cout << "DTrackSDK fatal error: invalid body id " << i << std::endl;
+			mc_rtc::log::error_and_throw<std::runtime_error>("[IRPlugin] DTrackSDK fatal error: invalid body id ");
 			break;
 		}
 
 		if ( ! body->isTracked() )
 		{
-			std::cout << "bod " << body->id << " not tracked" << std::endl;
+			mc_rtc::log::warning("[IRPlugin] bod {} not tracked", body->id);
+
+			trans[0] = loc_tar_1[0];
+			trans[1] = loc_tar_1[1];
+			trans[2] = loc_tar_1[2];
+			controller.controller().datastore().assign("rotation",rot);
+			controller.controller().datastore().assign("translation",trans);
 		}
 		else
 		{
-
-			std::cout << "bod " << body->id << " qu " << body->quality;
-			//           << " loc " << body->loc[ 0 ] << " " << body->loc[ 1 ] << " " << body->loc[ 2 ]
-			//           << " rot " << body->rot[ 0 ] << " " << body->rot[ 1 ] << " " << body->rot[ 2 ]
-			//           << " "     << body->rot[ 3 ] << " " << body->rot[ 4 ] << " " << body->rot[ 5 ]
-			//           << " "     << body->rot[ 6 ] << " " << body->rot[ 7 ] << " " << body->rot[ 8 ]
-			//           << std::endl;
-
 			DTrackQuaternion quat = body->getQuaternion();
-			// std::cout << "bod " << body->id << " quatw " << quat.w
-			//           << " quatxyz " << quat.x << " " << quat.y << " " << quat.z << std::endl;
-			// Assign loc into quaternion P
+
 			for(int i = 0; i < 3; i++)
 			{
-				P_loc_vec[i] = body->loc[i]/1000;
+				loc_tar_0[i] = body->loc[i];
 			}
-			P_loc_vec[3] = 0;
-			P_loc_quat = P_loc_vec;
-			// Assign Q
-			Q_temp << 0.5, 0.5, 0.5, 0.5;
-			Q = Q_temp;
-			// calc. P_n
-			Q_c = Q.conjugate();
-			P_loc_new = Q*P_loc_quat*Q_c;
+			loc_tar_1 = (T0*loc_tar_0)/1000;
 
-			P_rot_vec << quat.x, quat.y, quat.z, quat.w;
-			P_rot_quat = P_rot_vec;
-			P_rot_new = Q*P_rot_quat*Q_c;
+			// assign quaternion from IR data pack to my eigen variables. 
+			Quatern_temp[0] = quat.x;
+			Quatern_temp[1] = quat.y;
+			Quatern_temp[2] = quat.z;
+			Quatern_temp[3] = quat.w;
+			rot_tar_0 = Quatern_temp;
 
-			Eigen::Quaterniond rot(P_rot_new.w(),P_rot_new.x(),P_rot_new.y(),P_rot_new.z());
-			Eigen::Vector3d trans(P_loc_new.x(), P_loc_new.y(), P_loc_new.z());
-			controller.controller().datastore().assign("rotation",rot);
+			rot_tar_1 = rot_tar_0.conjugate();
+
+			trans[0] = loc_tar_1[0];
+			trans[1] = loc_tar_1[1];
+			trans[2] = loc_tar_1[2];
+			controller.controller().datastore().assign("rotation",rot_tar_1);
 			controller.controller().datastore().assign("translation",trans);
 		}
 
@@ -176,26 +163,34 @@ static void output_to_console(mc_control::MCGlobalController & controller)
  *
  * @return No error occured?
  */
-static bool data_error_to_console()
+bool MyPlugin::data_error_to_console()
 {
-	if ( dt->getLastDataError() == DTrackSDK::ERR_TIMEOUT )
-	{
-		std::cout << "--- timeout while waiting for tracking data" << std::endl;
-		return false;
-	}
+	// if ( dt->getLastDataError() == DTrackSDK::ERR_TIMEOUT )
+	// {
+	// 	mc_rtc::log::error("[IRPlugin]--- timeout while waiting for tracking data");
+	// 	return false;
+	// }
 
 	if ( dt->getLastDataError() == DTrackSDK::ERR_NET )
 	{
-		std::cout << "--- error while receiving tracking data" << std::endl;
+		mc_rtc::log::error("[IRPlugin]--- error while receiving tracking data");
 		return false;
 	}
 
 	if ( dt->getLastDataError() == DTrackSDK::ERR_PARSE )
 	{
-		std::cout << "--- error while parsing tracking data" << std::endl;
+		mc_rtc::log::error("[IRPlugin]--- error while parsing tracking data");
 		return false;
 	}
 
 	return true;
 }
 
+MyPlugin::~MyPlugin()
+{
+	delete dt;
+}
+
+} // namespace mc_plugin
+
+EXPORT_MC_RTC_PLUGIN("MyPlugin", mc_plugin::MyPlugin)
