@@ -14,7 +14,8 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 {
 
 	controller.controller().datastore().make<Eigen::Quaterniond>("rotation",rot);
-	controller.controller().datastore().make<Eigen::Vector3d>("translation",trans);
+	controller.controller().datastore().make<Eigen::Vector3d>("translation",trans1);
+	controller.controller().datastore().make<Eigen::Vector3d>("translation_ori",trans0);
 
 	// Reading transform matrix from file. 
 	std::ifstream fi("/home/moro/mcProjects/transform_matrix/build/cali.txt");
@@ -57,8 +58,9 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 	
 	// initialize vectors
 	loc_tar_0 = Eigen::Vector4d::Ones();
-	loc_tar_1 << 0.82, 0, 0.31, 1;
-	gipper_offset << -10, 0, 0, 1;
+	loc_tar_1 << 0.82+0.15, 0, 0.31, 1;
+	gripper_offset << -0.15, 0, 0;
+	trans1 << 0.82, 0, 0.31;
 
 	// Initialize Rotation quatrenions. 
 	R0 = T0.block(0,0,3,3);
@@ -87,6 +89,9 @@ void MyPlugin::before(mc_control::MCGlobalController & controller)
 	{
 		data_error_to_console();
 	}
+	controller.controller().datastore().assign("rotation",rot_tar_1.conjugate());
+	controller.controller().datastore().assign("translation",trans1);
+	controller.controller().datastore().assign("translation_ori",trans0);
 }
 
 void MyPlugin::after(mc_control::MCGlobalController & controller)
@@ -121,12 +126,6 @@ void MyPlugin::assign(mc_control::MCGlobalController & controller)
 		if ( ! body->isTracked() )
 		{
 			mc_rtc::log::warning("[IRPlugin] bod {} not tracked", body->id);
-
-			trans[0] = loc_tar_1[0];
-			trans[1] = loc_tar_1[1];
-			trans[2] = loc_tar_1[2];
-			controller.controller().datastore().assign("rotation",rot);
-			controller.controller().datastore().assign("translation",trans);
 		}
 		else
 		{
@@ -145,15 +144,13 @@ void MyPlugin::assign(mc_control::MCGlobalController & controller)
 			Quatern_temp[3] = quat.w;
 			rot_tar_0 = Quatern_temp;
 
-			rot_tar_1 = rot_tar_0.conjugate();
-
-			trans[0] = loc_tar_1[0];
-			trans[1] = loc_tar_1[1];
-			trans[2] = loc_tar_1[2];
-			controller.controller().datastore().assign("rotation",rot_tar_1);
-			controller.controller().datastore().assign("translation",trans);
+			rot_tar_1 = rot_T*rot_tar_0;
 		}
+		trans0[0] = loc_tar_1[0];
+		trans0[1] = loc_tar_1[1];
+		trans0[2] = loc_tar_1[2];
 
+		trans1 = trans0 + rot_tar_1*gripper_offset;
 	}
 }
 

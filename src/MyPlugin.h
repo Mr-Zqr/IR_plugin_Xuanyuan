@@ -33,8 +33,8 @@ struct MyPlugin : public mc_control::GlobalPlugin
   bool data_error_to_console();
 
 private:
-  Eigen::Vector4d loc_tar_0, loc_tar_1, Quatern_temp, rot_bias_temp, gripper_offset;
-  Eigen::Vector3d trans;
+  Eigen::Vector4d loc_tar_0, loc_tar_1, Quatern_temp, rot_bias_temp;
+  Eigen::Vector3d trans0, trans1, gripper_offset;
   Eigen::Quaterniond rot_tar_0, rot_tar_1, rot_T, rot_bias;
   Eigen::Matrix4d T0;
   Eigen::Matrix3d R0;
