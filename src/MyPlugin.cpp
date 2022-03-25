@@ -15,7 +15,7 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 
 	controller.controller().datastore().make<Eigen::Quaterniond>("rotation",rot);
 	controller.controller().datastore().make<Eigen::Vector3d>("translation",trans1);
-	controller.controller().datastore().make<Eigen::Vector3d>("translation_ori",trans0);
+	// controller.controller().datastore().make<Eigen::Vector3d>("translation_ori",trans0);
 
 	// Reading transform matrix from file. 
 	std::ifstream fi("/home/moro/mcProjects/transform_matrix/build/cali.txt");
@@ -91,7 +91,7 @@ void MyPlugin::before(mc_control::MCGlobalController & controller)
 	}
 	controller.controller().datastore().assign("rotation",rot_tar_1.conjugate());
 	controller.controller().datastore().assign("translation",trans1);
-	controller.controller().datastore().assign("translation_ori",trans0);
+	// controller.controller().datastore().assign("translation_ori",trans0);
 }
 
 void MyPlugin::after(mc_control::MCGlobalController & controller)
