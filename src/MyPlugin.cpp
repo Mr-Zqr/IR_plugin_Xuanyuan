@@ -58,8 +58,8 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 	
 	// initialize vectors
 	loc_tar_0 = Eigen::Vector4d::Ones();
-	loc_tar_1 << 0.82+0.15, 0, 0.31, 1;
-	gripper_offset << -0.15, 0, 0;
+	loc_tar_1 << 0.92, 0, 0.31, 1;
+	gripper_offset << -0.10, 0, 0;
 	trans1 << 0.82, 0, 0.31;
 
 	// Initialize Rotation quatrenions. 
