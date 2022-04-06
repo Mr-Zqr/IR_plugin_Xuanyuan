@@ -18,7 +18,7 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 	// controller.controller().datastore().make<Eigen::Vector3d>("translation_ori",trans0);
 
 	// Reading transform matrix from file. 
-	std::ifstream fi("/home/moro/mcProjects/transform_matrix/build/cali.txt");
+	std::ifstream fi("/home/zhenyuanfu/devel/src/transform_matrix/build/cali.txt");
 	if(!fi)
 	{
 		mc_rtc::log::error_and_throw<std::runtime_error>("[IRPlugin] No calibrate transform matrix file, aborting.");
@@ -37,6 +37,27 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
         linenum++;
     }
 	fi.close();
+
+	// Read marker to body transform matrix	
+	// std::ifstream ma2bo("/home/zhenyuanfu/devel/src/transform_matrix/build/cali.txt");
+	// if(!ma2bo)
+	// {
+	// 	mc_rtc::log::error_and_throw<std::runtime_error>("[IRPlugin] No calibrate transform matrix from marker to body file, aborting.");
+	// }
+    // while(ma2bo.good() && linenum < 5)
+    // {
+    //     ma2bo.getline(line, 256);
+    //     // puts(line);
+    //     std::istringstream iss(line);
+    //     iss >> intarr[0] >> intarr[1] >> intarr[2] >> intarr[3];
+
+    //     for(int i = 0; i < 4; i++)
+    //     {
+    //         T_m2b(linenum-1, i) = intarr[i];
+    //     }
+    //     linenum++;
+    // }
+	// ma2bo.close();
 
 	mc_rtc::log::info("[IRPlugin] Transform matrix:\n {}", T0);
 
@@ -70,11 +91,13 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 	// rot_bias compensates for difference between the IR and arm frame. 
 	rot_bias_temp << 0.5, 0.5, 0.5, 0.5;
 	rot_bias = rot_bias_temp;
+	reset(controller);
 }
 
 void MyPlugin::reset(mc_control::MCGlobalController & controller)
 {
   mc_rtc::log::info("[IRPlugin] MyPlugin::reset called");
+  controller.controller().gui()->addElement({"IRMarker"}, mc_rtc::gui::Transform("Marker", [this]() { return sva::PTransformd{rot_tar_1.conjugate(), trans0}; }));
 }
 
 void MyPlugin::before(mc_control::MCGlobalController & controller)
@@ -90,7 +113,7 @@ void MyPlugin::before(mc_control::MCGlobalController & controller)
 		data_error_to_console();
 	}
 	controller.controller().datastore().assign("rotation",rot_tar_1.conjugate());
-	controller.controller().datastore().assign("translation",trans1);
+	controller.controller().datastore().assign("translation",trans0);
 	// controller.controller().datastore().assign("translation_ori",trans0);
 }
 
