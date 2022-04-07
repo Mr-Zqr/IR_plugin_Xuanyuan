@@ -4,12 +4,12 @@
 
 #pragma once
 
-#include "DTrackSDK.hpp"
 #include <mc_control/GlobalPlugin.h>
-#include <iostream>
-#include <sstream>
+#include "DTrackSDK.hpp"
 #include <Eigen/Dense>
 #include <fstream>
+#include <iostream>
+#include <sstream>
 
 namespace mc_plugin
 {
@@ -27,9 +27,9 @@ struct IRPlugin : public mc_control::GlobalPlugin
   mc_control::GlobalPlugin::GlobalPluginConfiguration configuration() override;
 
   ~IRPlugin() override;
-  
+
   void assign(mc_control::MCGlobalController & controller);
-  
+
   bool data_error_to_console();
 
 private:
@@ -44,7 +44,7 @@ private:
   double intarr[4];
   bool tracked = false;
 
-  // For data transfer: 
+  // For data transfer:
   Eigen::Quaterniond rot;
 };
 
