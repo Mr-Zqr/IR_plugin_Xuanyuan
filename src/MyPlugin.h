@@ -33,11 +33,11 @@ struct MyPlugin : public mc_control::GlobalPlugin
   bool data_error_to_console();
 
 private:
-  Eigen::Vector4d loc_tar_0, loc_tar_1, Quatern_temp, rot_bias_temp;
-  Eigen::Vector3d trans0, trans1, gripper_offset;
-  Eigen::Quaterniond rot_tar_0, rot_tar_1, rot_T, rot_bias;
-  Eigen::Matrix4d T0, T_m2b;
-  Eigen::Matrix3d R0;
+  Eigen::Vector4d loc_tar_0, loc_tar_1, Quatern_temp;
+  Eigen::Vector3d trans0, trans_body;
+  Eigen::Quaterniond rot_tar_0, rot_tar_1, rot_body, rot_T;
+  Eigen::Matrix4d T0, T_m2b, T_marker, T_body;
+  Eigen::Matrix3d R0, R_body;
   DTrackSDK * dt;
   char line[256];
   int linenum = 1;

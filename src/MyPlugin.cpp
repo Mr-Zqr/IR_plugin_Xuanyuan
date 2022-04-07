@@ -13,8 +13,8 @@ namespace mc_plugin
 void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::Configuration & config)
 {
 
-	controller.controller().datastore().make<Eigen::Quaterniond>("rotation",rot);
-	controller.controller().datastore().make<Eigen::Vector3d>("translation",trans1);
+	controller.controller().datastore().make<Eigen::Quaterniond>("rotation_trunk",rot_body.conjugate());
+	controller.controller().datastore().make<Eigen::Vector3d>("translation_trunk",trans_body);
 	// controller.controller().datastore().make<Eigen::Vector3d>("translation_ori",trans0);
 
 	// Reading transform matrix from file. 
@@ -38,28 +38,30 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
     }
 	fi.close();
 
-	// Read marker to body transform matrix	
-	// std::ifstream ma2bo("/home/zhenyuanfu/devel/src/transform_matrix/build/cali.txt");
-	// if(!ma2bo)
-	// {
-	// 	mc_rtc::log::error_and_throw<std::runtime_error>("[IRPlugin] No calibrate transform matrix from marker to body file, aborting.");
-	// }
-    // while(ma2bo.good() && linenum < 5)
-    // {
-    //     ma2bo.getline(line, 256);
-    //     // puts(line);
-    //     std::istringstream iss(line);
-    //     iss >> intarr[0] >> intarr[1] >> intarr[2] >> intarr[3];
+	// Read calibration marker to body transform matrix from file. 
+	linenum = 1;
+	std::ifstream ma2bo("/home/zhenyuanfu/devel/src/transform_body/build/marker2body.txt");
+	if(!ma2bo)
+	{
+		mc_rtc::log::error_and_throw<std::runtime_error>("[IRPlugin] No calibrate transform matrix from marker to body file, aborting.");
+	}
+    while(ma2bo.good() && linenum < 5)
+    {
+        ma2bo.getline(line, 256);
+        // puts(line);
+        std::istringstream iss(line);
+        iss >> intarr[0] >> intarr[1] >> intarr[2] >> intarr[3];
 
-    //     for(int i = 0; i < 4; i++)
-    //     {
-    //         T_m2b(linenum-1, i) = intarr[i];
-    //     }
-    //     linenum++;
-    // }
-	// ma2bo.close();
+        for(int i = 0; i < 4; i++)
+        {
+            T_m2b(linenum-1, i) = intarr[i];
+        }
+        linenum++;
+    }
+	ma2bo.close();
 
-	mc_rtc::log::info("[IRPlugin] Transform matrix:\n {}", T0);
+	mc_rtc::log::info("[IRPlugin] Transform matrix from camera frame to car frame:\n {}", T0);
+	mc_rtc::log::info("\n[IRPlugin] Transform matrix marker to robot body:\n {}", T_m2b);
 
 	std::istringstream portstream( "6324" );
 	unsigned short port;
@@ -80,24 +82,20 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 	// initialize vectors
 	loc_tar_0 = Eigen::Vector4d::Ones();
 	loc_tar_1 << 0.92, 0, 0.31, 1;
-	gripper_offset << -0.10, 0, 0;
-	trans1 << 0.82, 0, 0.31;
 
 	// Initialize Rotation quatrenions. 
 	R0 = T0.block(0,0,3,3);
 	rot_T = R0;
 	rot_T = rot_T.normalized();
 
-	// rot_bias compensates for difference between the IR and arm frame. 
-	rot_bias_temp << 0.5, 0.5, 0.5, 0.5;
-	rot_bias = rot_bias_temp;
 	reset(controller);
 }
 
 void MyPlugin::reset(mc_control::MCGlobalController & controller)
 {
   mc_rtc::log::info("[IRPlugin] MyPlugin::reset called");
-  controller.controller().gui()->addElement({"IRMarker"}, mc_rtc::gui::Transform("Marker", [this]() { return sva::PTransformd{rot_tar_1.conjugate(), trans0}; }));
+  controller.controller().gui()->addElement({"IRMarker"}, mc_rtc::gui::Transform("Marker", [this]() 
+  			{ return sva::PTransformd{rot_body.conjugate(), trans_body}; }));
 }
 
 void MyPlugin::before(mc_control::MCGlobalController & controller)
@@ -112,9 +110,8 @@ void MyPlugin::before(mc_control::MCGlobalController & controller)
 	{
 		data_error_to_console();
 	}
-	controller.controller().datastore().assign("rotation",rot_tar_1.conjugate());
-	controller.controller().datastore().assign("translation",trans0);
-	// controller.controller().datastore().assign("translation_ori",trans0);
+	controller.controller().datastore().assign("rotation_trunk",rot_body.conjugate());
+	controller.controller().datastore().assign("translation_trunk",trans_body);
 }
 
 void MyPlugin::after(mc_control::MCGlobalController & controller)
@@ -158,7 +155,7 @@ void MyPlugin::assign(mc_control::MCGlobalController & controller)
 			{
 				loc_tar_0[i] = body->loc[i];
 			}
-			loc_tar_1 = (T0*loc_tar_0)/1000;
+			loc_tar_1 = (T0*loc_tar_0);
 
 			// assign quaternion from IR data pack to my eigen variables. 
 			Quatern_temp[0] = quat.x;
@@ -169,11 +166,16 @@ void MyPlugin::assign(mc_control::MCGlobalController & controller)
 
 			rot_tar_1 = rot_T*rot_tar_0;
 		}
-		trans0[0] = loc_tar_1[0];
-		trans0[1] = loc_tar_1[1];
-		trans0[2] = loc_tar_1[2];
 
-		trans1 = trans0 + rot_tar_1*gripper_offset;
+		T_marker.block(0,0,3,3) = rot_tar_1.toRotationMatrix();
+		T_marker.block(0,3,4,1) = loc_tar_1;
+
+		T_body = T_marker*T_m2b;
+
+		R_body = T_body.block(0,0,3,3);
+		rot_body = R_body;
+		rot_body = rot_body.normalized();
+		trans_body = (T_body.block(0,3,3,1))/1000;
 	}
 }
 
