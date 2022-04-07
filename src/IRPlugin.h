@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "include/DTrackSDK.hpp"
+#include "DTrackSDK.hpp"
 #include <mc_control/GlobalPlugin.h>
 #include <iostream>
 #include <sstream>
@@ -14,7 +14,7 @@
 namespace mc_plugin
 {
 
-struct MyPlugin : public mc_control::GlobalPlugin
+struct IRPlugin : public mc_control::GlobalPlugin
 {
   void init(mc_control::MCGlobalController & controller, const mc_rtc::Configuration & config) override;
 
@@ -26,7 +26,7 @@ struct MyPlugin : public mc_control::GlobalPlugin
 
   mc_control::GlobalPlugin::GlobalPluginConfiguration configuration() override;
 
-  ~MyPlugin() override;
+  ~IRPlugin() override;
   
   void assign(mc_control::MCGlobalController & controller);
   

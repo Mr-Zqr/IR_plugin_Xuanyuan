@@ -4,5 +4,5 @@ Enabled: Posture
 
 IncludeHalfSitController: false
 ClearGlobalPluginiPath: true
-Plugins: [ MyPlugin ]
-GlobalPluginPaths: ["$<TARGET_FILE_DIR:MyPlugin>"]
+Plugins: [ IRPlugin ]
+GlobalPluginPaths: ["$<TARGET_FILE_DIR:IRPlugin>"]

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 
-project(MyPlugin LANGUAGES CXX VERSION 1.0.0)
+project(IRPlugin LANGUAGES CXX VERSION 1.0.0)
 
 include(CTest)
 enable_testing()
@@ -11,35 +11,43 @@ if(NOT TARGET mc_rtc::mc_control)
 endif()
 
 # Configure and install the plugin configuration
-configure_file(etc/MyPlugin.in.yaml "${CMAKE_CURRENT_BINARY_DIR}/etc/MyPlugin.yaml")
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/etc/MyPlugin.yaml" DESTINATION "${MC_PLUGINS_RUNTIME_INSTALL_PREFIX}/etc")
+configure_file(etc/IRPlugin.in.yaml "${CMAKE_CURRENT_BINARY_DIR}/etc/IRPlugin.yaml")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/etc/IRPlugin.yaml" DESTINATION "${MC_PLUGINS_RUNTIME_INSTALL_PREFIX}/etc")
+
+set(DTrackSDK_SRC
+  src/DTrackSDK/src/DTrackData.cpp
+  src/DTrackSDK/src/DTrackNet.cpp
+  src/DTrackSDK/src/DTrackParse.cpp
+  src/DTrackSDK/src/DTrackParser.cpp
+  src/DTrackSDK/src/DTrackSDK.cpp
+)
 
 set(plugin_SRC
-  src/MyPlugin.cpp
-  src/src/DTrackData.cpp
-  src/src/DTrackNet.cpp
-  src/src/DTrackParse.cpp
-  src/src/DTrackParser.cpp
-  src/src/DTrackSDK.cpp
-  )
+  src/IRPlugin.cpp
+  ${DTrackSDK_SRC}
+)
+
+set(DTrackSDK_HDR
+  src/DTrackSDK/include/DTrackDataTypes.hpp
+  src/DTrackSDK/include/DTrackNet.hpp
+  src/DTrackSDK/include/DTrackParse.hpp
+  src/DTrackSDK/include/DTrackParser.hpp
+  src/DTrackSDK/include/DTrackSDK.hpp
+)
 
 set(plugin_HDR
-  src/MyPlugin.h
-  src/include/DTrackDataTypes.hpp
-  src/include/DTrackNet.hpp
-  src/include/DTrackParse.hpp
-  src/include/DTrackParser.hpp
-  src/include/DTrackSDK.hpp
+  src/IRPlugin.h
+  ${DTrackSDK_HDR}
 )
 
 # The add_plugin macro is provided by mc_rtc
-add_plugin(MyPlugin "${plugin_SRC}" "${plugin_HDR}")
+add_plugin(IRPlugin "${plugin_SRC}" "${plugin_HDR}")
 
 if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()
 
-target_include_directories(MyPlugin
+target_include_directories(IRPlugin
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/include/eigen-3.4.0
+    ${PROJECT_SOURCE_DIR}/src/DTrackSDK/include
 )

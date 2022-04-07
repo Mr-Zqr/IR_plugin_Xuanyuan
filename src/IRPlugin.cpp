@@ -1,4 +1,4 @@
-#include "MyPlugin.h"
+#include "IRPlugin.h"
 
 #include <mc_control/GlobalPluginMacros.h>
 
@@ -10,7 +10,7 @@ static DTrackSDK* dt = NULL;
 namespace mc_plugin
 {
 
-void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::Configuration & config)
+void IRPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::Configuration & config)
 {
 
 	controller.controller().datastore().make<Eigen::Quaterniond>("rotation_trunk",rot_body.conjugate());
@@ -91,14 +91,14 @@ void MyPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 	reset(controller);
 }
 
-void MyPlugin::reset(mc_control::MCGlobalController & controller)
+void IRPlugin::reset(mc_control::MCGlobalController & controller)
 {
-  mc_rtc::log::info("[IRPlugin] MyPlugin::reset called");
+  mc_rtc::log::info("[IRPlugin] IRPlugin::reset called");
   controller.controller().gui()->addElement({"IRMarker"}, mc_rtc::gui::Transform("Marker", [this]() 
   			{ return sva::PTransformd{rot_body.conjugate(), trans_body}; }));
 }
 
-void MyPlugin::before(mc_control::MCGlobalController & controller)
+void IRPlugin::before(mc_control::MCGlobalController & controller)
 {
 	// measurement:
 	int count = 0;
@@ -114,12 +114,12 @@ void MyPlugin::before(mc_control::MCGlobalController & controller)
 	controller.controller().datastore().assign("translation_trunk",trans_body);
 }
 
-void MyPlugin::after(mc_control::MCGlobalController & controller)
+void IRPlugin::after(mc_control::MCGlobalController & controller)
 {
-  mc_rtc::log::info("[IRPlugin] MyPlugin::after");
+  mc_rtc::log::info("[IRPlugin] IRPlugin::after");
 }
 
-mc_control::GlobalPlugin::GlobalPluginConfiguration MyPlugin::configuration()
+mc_control::GlobalPlugin::GlobalPluginConfiguration IRPlugin::configuration()
 {
   mc_control::GlobalPlugin::GlobalPluginConfiguration out;
   out.should_run_before = true;
@@ -131,7 +131,7 @@ mc_control::GlobalPlugin::GlobalPluginConfiguration MyPlugin::configuration()
 /**
  * \brief Prints current tracking data to console.
  */
-void MyPlugin::assign(mc_control::MCGlobalController & controller)
+void IRPlugin::assign(mc_control::MCGlobalController & controller)
 {
 	for ( int i = 0; i < dt->getNumBody(); i++ )
 	{
@@ -185,7 +185,7 @@ void MyPlugin::assign(mc_control::MCGlobalController & controller)
  *
  * @return No error occured?
  */
-bool MyPlugin::data_error_to_console()
+bool IRPlugin::data_error_to_console()
 {
 	// if ( dt->getLastDataError() == DTrackSDK::ERR_TIMEOUT )
 	// {
@@ -208,11 +208,11 @@ bool MyPlugin::data_error_to_console()
 	return true;
 }
 
-MyPlugin::~MyPlugin()
+IRPlugin::~IRPlugin()
 {
 	delete dt;
 }
 
 } // namespace mc_plugin
 
-EXPORT_MC_RTC_PLUGIN("MyPlugin", mc_plugin::MyPlugin)
+EXPORT_MC_RTC_PLUGIN("IRPlugin", mc_plugin::IRPlugin)
