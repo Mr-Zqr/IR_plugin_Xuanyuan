@@ -4,17 +4,17 @@
 
 #pragma once
 
-#include "include/DTrackSDK.hpp"
 #include <mc_control/GlobalPlugin.h>
-#include <iostream>
-#include <sstream>
+#include "DTrackSDK.hpp"
 #include <Eigen/Dense>
 #include <fstream>
+#include <iostream>
+#include <sstream>
 
 namespace mc_plugin
 {
 
-struct MyPlugin : public mc_control::GlobalPlugin
+struct IRPlugin : public mc_control::GlobalPlugin
 {
   void init(mc_control::MCGlobalController & controller, const mc_rtc::Configuration & config) override;
 
@@ -22,14 +22,14 @@ struct MyPlugin : public mc_control::GlobalPlugin
 
   void before(mc_control::MCGlobalController & controller) override;
 
-  void after(mc_control::MCGlobalController & controller) override;
+  void after(mc_control::MCGlobalController & controller) override {}
 
   mc_control::GlobalPlugin::GlobalPluginConfiguration configuration() override;
 
-  ~MyPlugin() override;
-  
-  void assign(mc_control::MCGlobalController & controller);
-  
+  ~IRPlugin() override;
+
+  void update_data();
+
   bool data_error_to_console();
 
 private:
@@ -44,8 +44,19 @@ private:
   double intarr[4];
   bool tracked = false;
 
-  // For data transfer: 
+  // For data transfer:
   Eigen::Quaterniond rot;
+
+  // Data that will be copied to the datastore
+  Eigen::Quaterniond datastore_rotation_;
+  Eigen::Vector3d datastore_translation_;
+
+  // Running thread
+  std::atomic<bool> running_{false};
+  std::thread update_thread_;
+
+  // Update mutex to safely copy between the update thread and the before method
+  std::mutex update_mutex_;
 };
 
 } // namespace mc_plugin
