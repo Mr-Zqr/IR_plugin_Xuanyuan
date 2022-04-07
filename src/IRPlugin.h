@@ -22,13 +22,13 @@ struct IRPlugin : public mc_control::GlobalPlugin
 
   void before(mc_control::MCGlobalController & controller) override;
 
-  void after(mc_control::MCGlobalController & controller) override;
+  void after(mc_control::MCGlobalController & controller) override {}
 
   mc_control::GlobalPlugin::GlobalPluginConfiguration configuration() override;
 
   ~IRPlugin() override;
 
-  void assign(mc_control::MCGlobalController & controller);
+  void update_data();
 
   bool data_error_to_console();
 
@@ -46,6 +46,17 @@ private:
 
   // For data transfer:
   Eigen::Quaterniond rot;
+
+  // Data that will be copied to the datastore
+  Eigen::Quaterniond datastore_rotation_;
+  Eigen::Vector3d datastore_translation_;
+
+  // Running thread
+  std::atomic<bool> running_{false};
+  std::thread update_thread_;
+
+  // Update mutex to safely copy between the update thread and the before method
+  std::mutex update_mutex_;
 };
 
 } // namespace mc_plugin

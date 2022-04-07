@@ -11,11 +11,6 @@ namespace mc_plugin
 
 void IRPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::Configuration & config)
 {
-
-  controller.controller().datastore().make<Eigen::Quaterniond>("rotation_trunk", rot_body.conjugate());
-  controller.controller().datastore().make<Eigen::Vector3d>("translation_trunk", trans_body);
-  // controller.controller().datastore().make<Eigen::Vector3d>("translation_ori",trans0);
-
   // Reading transform matrix from file.
   std::ifstream fi("/home/zhenyuanfu/devel/src/transform_matrix/build/cali.txt");
   if(!fi)
@@ -93,31 +88,46 @@ void IRPlugin::init(mc_control::MCGlobalController & controller, const mc_rtc::C
 
 void IRPlugin::reset(mc_control::MCGlobalController & controller)
 {
-  mc_rtc::log::info("[IRPlugin] IRPlugin::reset called");
+  if(update_thread_.joinable())
+  {
+    running_ = false;
+    update_thread_.join();
+  }
+  controller.controller().datastore().make<Eigen::Quaterniond>("rotation_trunk", rot_body.conjugate());
+  controller.controller().datastore().make<Eigen::Vector3d>("translation_trunk", trans_body);
   controller.controller().gui()->addElement({"IRMarker"}, mc_rtc::gui::Transform("Marker", [this]() {
                                               return sva::PTransformd{rot_body.conjugate(), trans_body};
                                             }));
+  running_ = true;
+  update_thread_ = std::thread([this]() {
+    while(running_)
+    {
+      // measurement:
+      if(dt->receive())
+      {
+        update_data();
+      }
+      else
+      {
+        data_error_to_console();
+      }
+      {
+        std::unique_lock<std::mutex> lock(update_mutex_);
+        datastore_rotation_ = rot_body.conjugate();
+        datastore_translation_ = trans_body;
+      }
+      // FIXME Make this configurable
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+  });
+  mc_rtc::log::info("[IRPlugin] IRPlugin::reset called");
 }
 
 void IRPlugin::before(mc_control::MCGlobalController & controller)
 {
-  // measurement:
-  int count = 0;
-  if(dt->receive())
-  {
-    assign(controller);
-  }
-  else
-  {
-    data_error_to_console();
-  }
+  std::unique_lock<std::mutex> lock(update_mutex_);
   controller.controller().datastore().assign("rotation_trunk", rot_body.conjugate());
   controller.controller().datastore().assign("translation_trunk", trans_body);
-}
-
-void IRPlugin::after(mc_control::MCGlobalController & controller)
-{
-  mc_rtc::log::info("[IRPlugin] IRPlugin::after");
 }
 
 mc_control::GlobalPlugin::GlobalPluginConfiguration IRPlugin::configuration()
@@ -132,7 +142,7 @@ mc_control::GlobalPlugin::GlobalPluginConfiguration IRPlugin::configuration()
 /**
  * \brief Prints current tracking data to console.
  */
-void IRPlugin::assign(mc_control::MCGlobalController & controller)
+void IRPlugin::update_data()
 {
   for(int i = 0; i < dt->getNumBody(); i++)
   {
@@ -205,6 +215,7 @@ bool IRPlugin::data_error_to_console()
     return false;
   }
 
+  mc_rtc::log::error("[IRPlugin]--- Unknown error {}", dt->getLastDataError());
   return true;
 }
 
